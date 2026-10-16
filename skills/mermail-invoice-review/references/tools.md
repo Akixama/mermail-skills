@@ -6,9 +6,11 @@ Discover schemas from the authenticated host before constructing calls. Use the 
 | --- | --- | --- |
 | Resolve authorized context | `list_workspaces`, `list_mailboxes` | `mermail-administer-workspace` |
 | Find invoice candidates | `search_emails` | `mermail-manage-inbox` |
+| Requested all-email metadata discovery | `list_emails` | `mermail-manage-inbox` |
 | Read selected evidence | `get_email`, `get_email_context` | `mermail-manage-inbox` |
+| Explicit necessary attachment inspection | `download_attachment` | `mermail-manage-inbox` |
 
-Do not call `chat_with_mailbox_agent` as a substitute for these reads; that is a delegated effect. This workflow neither downloads attachments nor uses wallet tools. Report attachment-only invoices as unreviewed; an explicit attachment task belongs to the inbox owner.
+Do not call `chat_with_mailbox_agent` as a substitute for these reads; that is a delegated effect. This workflow uses no wallet tools. Attachment inspection is optional, only when necessary for the requested review and the restrictions in [extended-review.md](extended-review.md) are satisfied; otherwise report attachment-only invoices as unreviewed. Reuse the inbox owner's download contract, never arbitrary mailbox-derived URLs.
 
 Illustrative search envelope (replace IDs and dates from user scope; inspect supported free-text field before adding it):
 

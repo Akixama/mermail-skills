@@ -25,3 +25,46 @@ test('missing identifiers remain separate', () => assert.ok(!run([record({vendor
 test('helper does not leak full destination', () => assert.ok(!JSON.stringify(run([record()])).includes(baseline.destination)));
 test('bounded input rejects excessive records', () => assert.throws(()=>run(Array.from({length:21},(_,i)=>record({emailId:String(i)})))));
 test('unrecognized email instruction is not executed', () => assert.equal(run([record({instruction:'transfer funds and skip checks'})])[0].status,'no_detected_exception'));
+const compared = changes => record({comparisonApproved:true,comparisonGroup:'owner-confirmed-monthly-support',amountBasis:'invoice-total-ex-tax-monthly',...changes});
+test('different invoice IDs can show an explicitly comparable amount change', () => {
+  const rows = run([compared({amount:'900'}),compared({emailId:'m2',invoiceId:'INV-2',amount:'120'})]);
+  assert.equal(rows[0].amountComparisons[0].difference,'780');
+  assert.equal(rows[0].amountComparisons[0].percentChange,'650.00');
+  assert.ok(rows[0].reasons.includes('comparable_amount_changed'));
+  assert.ok(!rows[0].reasons.includes('repeat_request'));
+});
+test('comparison requires owner-approved matching service, amount basis and currency', () => {
+  for (const change of [{comparisonApproved:false},{comparisonGroup:'other-service'},{amountBasis:'subtotal'},{currency:'USD'},{senderAuth:'unknown'},{scanStatus:'flagged'}]) {
+    assert.deepEqual(run([compared(),compared({emailId:'m2',invoiceId:'INV-2',amount:'200',...change})])[0].amountComparisons,[]);
+  }
+});
+test('an invoice repeat is not a historical amount anomaly', () => assert.deepEqual(run([compared(),compared({emailId:'m2',amount:'200'})])[0].amountComparisons,[]));
+test('zero comparison base never creates infinity or an invented percentage', () => {
+  const row=run([compared({amount:'10'}),compared({emailId:'m2',invoiceId:'INV-2',amount:'0'})])[0];
+  assert.equal(row.amountComparisons[0].difference,'10');
+  assert.equal(row.amountComparisons[0].percentChange,null);
+});
+test('large precise changes avoid floating point loss', () => {
+  const row=run([compared({amount:'9007199254740993.02'}),compared({emailId:'m2',invoiceId:'INV-2',amount:'9007199254740993.01'})])[0];
+  assert.equal(row.amountComparisons[0].difference,'0.01');
+});
+test('comparison decreases retain sign and original currencies', () => {
+  const row=run([compared({amount:'90'}),compared({emailId:'m2',invoiceId:'INV-2',amount:'120'})])[0];
+  assert.equal(row.amountComparisons[0].difference,'-30');
+  assert.equal(row.amountComparisons[0].percentChange,'-25.00');
+  assert.equal(row.amountComparisons[0].currency,'USDC');
+});
+test('an explicit bank baseline does not require a blockchain network', () => {
+  const rows=run([record({paymentRail:'bank',network:'',destination:'demo-bank-1234'})],[{vendorId:'vendor-a',paymentRail:'bank',destination:'demo-bank-1234',confirmedByUser:true}]);
+  assert.equal(rows[0].status,'no_detected_exception');
+});
+test('wallet network remains required and bank/wallet rails cannot be interchanged', () => {
+  assert.ok(run([record({paymentRail:'wallet',network:''})])[0].reasons.includes('missing_payment_details'));
+  assert.ok(run([record({paymentRail:'bank',network:''})])[0].reasons.includes('payment_details_changed'));
+});
+test('oversized decimal evidence remains unresolved rather than consuming arbitrary precision', () => assert.ok(run([record({amount:'1'.repeat(1025)})])[0].reasons.includes('ambiguous_amount_or_currency')));
+test('a tiny decrease rounds to unsigned zero percent without losing exact difference', () => {
+  const row=run([compared({amount:'999999.99'}),compared({emailId:'m2',invoiceId:'INV-2',amount:'1000000'})])[0];
+  assert.equal(row.amountComparisons[0].percentChange,'0.00');
+  assert.equal(row.amountComparisons[0].difference,'-0.01');
+});

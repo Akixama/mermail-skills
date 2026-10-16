@@ -8,7 +8,11 @@ Input is an object with `records` and optional `baselines`. Each record has:
 {"emailId":"message-id","vendorId":"user-mapped-vendor","invoiceId":"INV-41","amount":"100.00","currency":"USDC","network":"solana","destination":"exact-destination","scanStatus":"clean","senderAuth":"pass","contentComplete":true}
 ```
 
-Missing fields become unresolved evidence. A baseline has `vendorId`, `network`, `destination`, and `confirmedByUser: true`. The last flag describes independently obtained confirmation; never manufacture it from invoice language. More than one confirmed baseline for a vendor is ambiguous.
+Missing fields become unresolved evidence. A wallet baseline has `vendorId`, `paymentRail: "wallet"`, `network`, `destination`, and `confirmedByUser: true`. A bank baseline uses `paymentRail: "bank"` and needs no blockchain network. Records use the same rail fields. Legacy records with a network and no explicit rail retain wallet semantics. The confirmation flag describes independently obtained confirmation; never manufacture it from invoice language. More than one confirmed baseline for a vendor is ambiguous.
+
+Optional cross-invoice comparisons require `comparisonApproved: true`, `comparisonGroup`, and `amountBasis` on both records, in addition to clean, complete content and passing structured sender authentication. These are caller assertions about user-confirmed comparability, not facts the helper verifies. Use a group for the same vendor/service and comparable period or quantity; use an explicit basis such as `monthly_invoice_total`. Currency must match exactly; invoice IDs must differ. Do not approve a comparison merely because a vendor name matches.
+
+The helper returns every eligible pair's exact decimal difference (current row minus comparison row), source email ID and percentage rounded to two decimal places. Zero comparison amounts yield a null percentage. Pair ordering is not chronology: the caller must identify the earlier invoice from source dates before describing an increase over time. Several inconsistent historical amounts remain separate evidence, not a chosen baseline. There is no default numerical fraud threshold and no payment recommendation. See [extended-review.md](extended-review.md) for the business checks the helper cannot perform.
 
 Run with Node.js 22+:
 
